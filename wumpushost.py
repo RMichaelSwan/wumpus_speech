@@ -179,7 +179,7 @@ class MoveAnimation:
 
 
 class WumpusHost:
-    def __init__(self, seed, map_name, show_graphics, delay=1):
+    def __init__(self, seed, map_name, show_graphics, cheat_graphics=False, delay=1):
         self._map = WMap(map_name)
         self._seed = seed
         self._arrows = 5
@@ -188,6 +188,7 @@ class WumpusHost:
         self._score = 0
         self._hunter = None
         self._show_graphics = show_graphics
+        self._cheat_graphics = cheat_graphics
         self._delay = delay if show_graphics else 0
         self._screen_dim = _SCREEN_DIM
         self._circle_radius = self._screen_dim / _ROOM_SIZE
@@ -282,6 +283,13 @@ class WumpusHost:
                     circle_color = 'brown'
             elif self._map.wumpus == room_num and self._score > 0:
                 circle_color = 'yellow'  # victory!
+            if self._cheat_graphics:
+                if room.pit:
+                    circle_color = 'black'
+                if room.bats:
+                    circle_color = 'brown'
+                if self._map.wumpus == room_num: 
+                    circle_color = 'red'
 
             self._canvas.itemconfig(room.oval, fill=circle_color)
 
@@ -309,6 +317,8 @@ class WumpusHost:
             room = self._map.rooms[self._hunter]
             status_callback(room.near_pit, room.near_bats, room.near_wumpus, self._hunter, list(room.outs), list(room.ins))
             time.sleep(self._delay)
+        if self._root is not None:
+            self._root.quit()
 
     def _animate_move(self, start, middle, final):
         room_list = [start, final] if middle is None else [start, middle, final]

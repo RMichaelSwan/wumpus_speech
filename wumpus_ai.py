@@ -4,7 +4,7 @@ from wumpushost import ActionResult, WumpusHost
 
 class Player:
     def __init__(self, a_seed, map_file):
-        self.host = WumpusHost(a_seed, map_file, show_graphics=False, delay=3)
+        self.host = WumpusHost(a_seed, map_file, show_graphics=True, delay=3)
 
     def play(self):
         return self.host.play(self.status_callback)

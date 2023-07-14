@@ -2,13 +2,52 @@ import random
 
 from wumpushost import ActionResult, WumpusHost
 
+from queue import Queue
+
 
 class Player:
     def __init__(self, a_seed, map_file):
-        self.host = WumpusHost(a_seed, map_file, show_graphics=False)
+        self.seed = a_seed
+        self.map_file = map_file
+        self.decision_history = Queue()
+        self.replay_flag = False
+        self.host = WumpusHost(a_seed, map_file, show_graphics=False, cheat_graphics=False)
 
     def play(self):
         return self.host.play(self.status_callback)
+
+    def replay(self):
+        if self.decision_history.qsize() <= 0:
+            print('Nothing to replay. Exiting.')
+        else:
+            print('Replaying last game...')
+            self.replay_flag = True
+            self.host = WumpusHost(self.seed, self.map_file, show_graphics=True, cheat_graphics=True)
+            return self.host.play(self.status_callback)
+        
+    def replay_decision(self):
+        decision = input('Review Game? (y or n) ')
+        if decision in ['y', 'Y']:
+            self.replay()
+            return True
+        else:
+            print(f'Received {decision}. Exiting.')
+        return False
+
+    def make_decision(self):
+        if self.replay_flag:
+            decision = self.decision_history.get_nowait()
+            print('Move or Shoot? (m or s) ', decision)
+        else:
+            decision = input('Move or Shoot? (m or s) ')
+            self.decision_history.put_nowait(decision)
+        
+        if decision in ['m', 'M']:
+            self.perform_move()
+        elif decision in ['s', 'S']:
+            self.perform_shoot()
+        else:
+            print("That's not an option in this game.")
 
     def status_callback(self, near_pit, near_bats, near_wumpus, room, exits, entrances):
         if near_pit:
@@ -24,17 +63,24 @@ class Player:
         visible = [x + 1 for x in entrances if x not in exits]
         if visible:
             print("You can also see (but cannot get to) {}".format(visible))
-        decision = input('Move or Shoot? (m or s) ')
-        if decision in ['m', 'M']:
-            self.perform_move()
-        elif decision in ['s', 'S']:
-            self.perform_shoot()
-        else:
-            print("That's not an option in this game.")
+        self.make_decision()
 
     def perform_move(self):
         """Perform a move action."""
-        new_room = int(input('Where to? ')) - 1
+        if self.replay_flag:
+            new_room = int(self.decision_history.get_nowait())
+            print('Where to? ', new_room)
+            input("[REPLAY] Press any key to continue...")
+        else:
+            try:
+                new_room = input('Where to? ')
+                new_room = int(new_room)
+            except ValueError:
+                print(f'Invalid input room value: {new_room}. Try again.')
+                return
+            self.decision_history.put_nowait(new_room)
+        new_room -= 1 # rooms are 0-indexed on backend
+        
         result, bats_picked_up = self.host.move(new_room)
         if bats_picked_up:
             print('ZAP -- Super Bat snatch! Elsewhereville for you!')
@@ -49,8 +95,20 @@ class Player:
 
     def perform_shoot(self):
         """Perform a shoot action"""
-        rooms = input('You can shoot up to five rooms, separate rooms with a comma ')
-        room_list = [int(x) - 1 for x in rooms.split(',')]
+        if self.replay_flag:
+            rooms = self.decision_history.get_nowait()
+            print('You can shoot up to five rooms, separate rooms with a comma ', rooms)
+            input("[REPLAY] Press any key to continue...")
+        else:
+            rooms = input('You can shoot up to five rooms, separate rooms with a comma ')
+            self.decision_history.put_nowait(rooms)
+
+        try: 
+            room_list = [int(x) - 1 for x in rooms.split(',')]
+        except ValueError:
+            print(f'Invalid input room list: {rooms}. Try again.')
+            return
+        
         result = self.host.shoot(room_list)
         if result == ActionResult.TOO_CROOKED:
             print("Arrows aren't that crooked - try another room")
@@ -67,7 +125,9 @@ class Player:
 
 
 if __name__ == '__main__':
-    player = Player(random.randint(0, 1000), 'mobius.txt')
+    # seed = random.randint(0, 1000)
+    seed = 921
+    player = Player(seed, 'standard.txt')
     print("""
         WELCOME TO 'HUNT THE WUMPUS'
 
@@ -122,6 +182,8 @@ if __name__ == '__main__':
     HUNT THE WUMPUS
     """)
     score = player.play()
+    player.replay_decision()
+    print("Your seed that game was:", player.seed)
     if score:
         print("HEE HEE HEE - The wumpus'll getcha next time!!\nYou got a score of {}".format(score))
     else:
